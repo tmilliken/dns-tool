@@ -1,0 +1,14 @@
+[Unit]
+Description=DNScan FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/dns-tool/backend
+ExecStart=/var/www/dns-tool/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

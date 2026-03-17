@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DNScan — DNS Lookup & Diagnostics</title>
+  <meta name="description" content="Free DNS lookup, propagation checker, SPF/DKIM/DMARC validator and reverse DNS tool. Instant results from multiple resolvers worldwide.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0c0f;
+      --surface: #111418;
+      --surface2: #181c22;
+      --border: #1f2530;
+      --border2: #2a3140;
+      --accent: #00d4ff;
+      --accent2: #0099bb;
+      --green: #00e676;
+      --yellow: #ffd740;
+      --red: #ff5252;
+      --text: #e2e8f0;
+      --muted: #6b7a94;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .logo span { color: var(--muted); }
+
+    .header-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      border: 1px solid var(--border2);
+      padding: 3px 10px;
+      border-radius: 2px;
+      letter-spacing: 1px;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 13px;
+      font-family: var(--mono);
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .hero-text {
+      font-size: 28px;
+      font-weight: 300;
+      color: var(--text);
+      margin-bottom: 32px;
+      line-height: 1.3;
+    }
+
+    .hero-text strong { color: var(--accent); font-weight: 600; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+
+    .tab {
+      padding: 10px 20px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.15s;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* Input panels */
+    .panel { display: none; }
+    .panel.active { display: block; }
+
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .input-wrap {
+      flex: 1;
+      position: relative;
+    }
+
+    .input-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"], select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 14px;
+      padding: 12px 16px;
+      outline: none;
+      border-radius: 3px;
+      transition: border-color 0.15s;
+    }
+
+    input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent2);
+    }
+
+    select { cursor: pointer; }
+
+    .btn {
+      background: var(--accent);
+      color: #000;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 12px 24px;
+      border: none;
+      cursor: pointer;
+      border-radius: 3px;
+      align-self: flex-end;
+      transition: background 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { background: #00b8d9; }
+    .btn:active { transform: scale(0.98); }
+    .btn:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; }
+
+    /* Results */
+    .results { margin-top: 8px; }
+
+    .result-block {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-type {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .result-ttl {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .result-body { padding: 12px 16px; }
+
+    .record-row {
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      word-break: break-all;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .record-row:last-child { border-bottom: none; }
+    .record-row .priority { color: var(--yellow); min-width: 30px; }
+
+    .no-record {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+      padding: 4px 0;
+    }
+
+    /* Status badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 2px 8px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+
+    .badge-green { background: rgba(0,230,118,0.12); color: var(--green); border: 1px solid rgba(0,230,118,0.25); }
+    .badge-yellow { background: rgba(255,215,64,0.12); color: var(--yellow); border: 1px solid rgba(255,215,64,0.25); }
+    .badge-red { background: rgba(255,82,82,0.12); color: var(--red); border: 1px solid rgba(255,82,82,0.25); }
+    .badge-blue { background: rgba(0,212,255,0.12); color: var(--accent); border: 1px solid rgba(0,212,255,0.25); }
+
+    /* Propagation grid */
+    .prop-summary {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+
+    .prop-stat { text-align: center; }
+    .prop-stat .number {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .prop-stat .label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .prop-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .prop-bar-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .resolver-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 8px;
+    }
+
+    .resolver-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 10px 14px;
+    }
+
+    .resolver-name {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .resolver-ip {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .resolver-record {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      word-break: break-all;
+    }
+
+    /* Email security */
+    .score-display {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+
+    .score-circle {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 600;
+      border: 2px solid;
+      flex-shrink: 0;
+    }
+
+    .score-a { color: var(--green); border-color: var(--green); }
+    .score-b { color: #69f0ae; border-color: #69f0ae; }
+    .score-c { color: var(--yellow); border-color: var(--yellow); }
+    .score-f { color: var(--red); border-color: var(--red); }
+
+    .score-info { flex: 1; }
+    .score-label { font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+    .score-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+    .security-section { margin-bottom: 12px; }
+
+    .security-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px 3px 0 0;
+      cursor: pointer;
+    }
+
+    .security-title {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .security-body {
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 3px 3px;
+    }
+
+    .issue-list { margin-top: 8px; }
+    .issue-item {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--yellow);
+      padding: 4px 0;
+      padding-left: 16px;
+      position: relative;
+    }
+    .issue-item::before { content: '⚠'; position: absolute; left: 0; }
+
+    .record-display {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--bg);
+      padding: 8px 12px;
+      border-radius: 3px;
+      margin-top: 8px;
+      word-break: break-all;
+      border: 1px solid var(--border);
+    }
+
+    /* Reverse lookup */
+    .ptr-result { }
+
+    .hostname-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .hostname-row:last-child { border-bottom: none; }
+
+    .hostname-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text);
+    }
+
+    .hostname-ips {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      background: rgba(255,82,82,0.08);
+      border: 1px solid rgba(255,82,82,0.3);
+      border-radius: 4px;
+      padding: 12px 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--red);
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 20px 40px;
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 60px;
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 16px 20px; }
+      main { padding: 24px 16px; }
+      .input-group { flex-direction: column; }
+      .btn { width: 100%; }
+      .hero-text { font-size: 22px; }
+      .tabs { overflow-x: auto; }
+      .tab { white-space: nowrap; padding: 10px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">DNS<span>can</span></div>
+  <div class="header-tag">DIAGNOSTIC TOOL</div>
+</header>
+
+<main>
+  <h1>// dns toolkit</h1>
+  <p class="hero-text">Instant <strong>DNS lookup</strong>, propagation checking,<br>and email security validation.</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('lookup')">DNS Lookup</button>
+    <button class="tab" onclick="switchTab('propagation')">Propagation</button>
+    <button class="tab" onclick="switchTab('email')">Email Security</button>
+    <button class="tab" onclick="switchTab('reverse')">Reverse DNS</button>
+  </div>
+
+  <!-- DNS LOOKUP -->
+  <div class="panel active" id="panel-lookup">
+    <div class="input-group">
+      <div class="input-wrap">
+        <div class="input-label">Domain</div>
+        <input type="text" id="lookup-domain" placeholder="example.com" onkeydown="if(event.key==='Enter') runLookup()">
+      </div>
+      <button class="btn" onclick="runLookup()">SCAN →</button>
+    </div>
+    <div class="results" id="lookup-results"></div>
+  </div>
+
+  <!-- PROPAGATION -->
+  <div class="panel" id="panel-propagation">
+    <div class="input-group">
+      <div class="input-wrap">
+        <div class="input-label">Domain</div>
+        <input type="text" id="prop-domain" placeholder="example.com" onkeydown="if(event.key==='Enter') runPropagation()">
+      </div>
+      <div class="input-wrap" style="max-width:120px">
+        <div class="input-label">Record Type</div>
+        <select id="prop-type">
+          <option>A</option>
+          <option>AAAA</option>
+          <option>MX</option>
+          <option>CNAME</option>
+          <option>TXT</option>
+          <option>NS</option>
+        </select>
+      </div>
+      <button class="btn" onclick="runPropagation()">CHECK →</button>
+    </div>
+    <div class="results" id="prop-results"></div>
+  </div>
+
+  <!-- EMAIL SECURITY -->
+  <div class="panel" id="panel-email">
+    <div class="input-group">
+      <div class="input-wrap">
+        <div class="input-label">Domain</div>
+        <input type="text" id="email-domain" placeholder="example.com" onkeydown="if(event.key==='Enter') runEmailSecurity()">
+      </div>
+      <button class="btn" onclick="runEmailSecurity()">VALIDATE →</button>
+    </div>
+    <div class="results" id="email-results"></div>
+  </div>
+
+  <!-- REVERSE DNS -->
+  <div class="panel" id="panel-reverse">
+    <div class="input-group">
+      <div class="input-wrap">
+        <div class="input-label">IP Address</div>
+        <input type="text" id="reverse-ip" placeholder="1.2.3.4" onkeydown="if(event.key==='Enter') runReverse()">
+      </div>
+      <button class="btn" onclick="runReverse()">LOOKUP →</button>
+    </div>
+    <div class="results" id="reverse-results"></div>
+  </div>
+</main>
+
+<footer>DNScan — DNS Diagnostic Tool &nbsp;·&nbsp; All lookups performed in real-time</footer>
+
+<script>
+  // ─── Config ───────────────────────────────────────────────
+  const API = ''; // empty = same origin; set to 'http://your-server:8000' for dev
+
+  // ─── Tab switching ─────────────────────────────────────────
+  function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+      const names = ['lookup','propagation','email','reverse'];
+      t.classList.toggle('active', names[i] === name);
+    });
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + name).classList.add('active');
+  }
+
+  // ─── Helpers ───────────────────────────────────────────────
+  function loading(id, msg = 'Querying DNS servers...') {
+    document.getElementById(id).innerHTML = `<div class="loading"><div class="spinner"></div>${msg}</div>`;
+  }
+
+  function error(id, msg) {
+    document.getElementById(id).innerHTML = `<div class="error-box">⚠ ${msg}</div>`;
+  }
+
+  function badge(status) {
+    if (status === 'valid' || status === 'resolved') return `<span class="badge badge-green">● OK</span>`;
+    if (status === 'warning') return `<span class="badge badge-yellow">⚠ WARNING</span>`;
+    if (status === 'missing') return `<span class="badge badge-red">✗ MISSING</span>`;
+    if (status === 'error') return `<span class="badge badge-red">✗ ERROR</span>`;
+    if (status === 'unknown') return `<span class="badge badge-blue">? UNKNOWN</span>`;
+    if (status === 'timeout') return `<span class="badge badge-yellow">⏱ TIMEOUT</span>`;
+    if (status === 'nxdomain') return `<span class="badge badge-red">✗ NXDOMAIN</span>`;
+    return `<span class="badge badge-blue">${status}</span>`;
+  }
+
+  async function apiFetch(endpoint, body) {
+    const r = await fetch(API + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${r.status}`);
+    }
+    return r.json();
+  }
+
+  // ─── DNS LOOKUP ────────────────────────────────────────────
+  async function runLookup() {
+    const domain = document.getElementById('lookup-domain').value.trim();
+    if (!domain) return;
+    loading('lookup-results');
+    try {
+      const data = await apiFetch('/api/lookup', { domain });
+      renderLookup(data);
+    } catch(e) { error('lookup-results', e.message); }
+  }
+
+  function renderLookup(data) {
+    const order = ['A','AAAA','MX','CNAME','TXT','NS','SOA'];
+    let html = '';
+    for (const rtype of order) {
+      const rec = data.records[rtype];
+      if (!rec) continue;
+      html += `<div class="result-block">
+        <div class="result-header">
+          <span class="result-type">${rtype}</span>
+          ${rec.found && rec.ttl != null ? `<span class="result-ttl">TTL ${rec.ttl}s</span>` : ''}
+        </div>
+        <div class="result-body">`;
+      if (!rec.found || !rec.records || rec.records.length === 0) {
+        html += `<div class="no-record">${rec.error || 'No records found'}</div>`;
+      } else {
+        for (const r of rec.records) {
+          if (rtype === 'MX') {
+            html += `<div class="record-row"><span class="priority">${r.priority}</span><span>${r.value}</span></div>`;
+          } else if (rtype === 'SOA') {
+            html += `<div class="record-row" style="flex-direction:column;gap:4px">
+              <div><span style="color:var(--muted)">Primary NS:</span> ${r.mname}</div>
+              <div><span style="color:var(--muted)">Admin:</span> ${r.rname}</div>
+              <div><span style="color:var(--muted)">Serial:</span> ${r.serial}</div>
+            </div>`;
+          } else {
+            html += `<div class="record-row">${r}</div>`;
+          }
+        }
+      }
+      html += `</div></div>`;
+    }
+    document.getElementById('lookup-results').innerHTML = html || '<div class="no-record">No records found</div>';
+  }
+
+  // ─── PROPAGATION ───────────────────────────────────────────
+  async function runPropagation() {
+    const domain = document.getElementById('prop-domain').value.trim();
+    const record_type = document.getElementById('prop-type').value;
+    if (!domain) return;
+    loading('prop-results', `Checking ${record_type} propagation across 10 resolvers...`);
+    try {
+      const data = await apiFetch('/api/propagation', { domain, record_type });
+      renderPropagation(data);
+    } catch(e) { error('prop-results', e.message); }
+  }
+
+  function renderPropagation(data) {
+    const pct = data.percent;
+    const barColor = pct === 100 ? 'var(--green)' : pct >= 60 ? 'var(--yellow)' : 'var(--red)';
+
+    let html = `<div class="prop-summary">
+      <div class="prop-stat">
+        <div class="number">${data.propagated}/${data.total}</div>
+        <div class="label">Resolvers</div>
+      </div>
+      <div class="prop-stat">
+        <div class="number">${pct}%</div>
+        <div class="label">Propagated</div>
+      </div>
+      <div class="prop-bar" style="margin:0 8px">
+        <div class="prop-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+      </div>
+      ${data.consistent
+        ? '<span class="badge badge-green">CONSISTENT</span>'
+        : '<span class="badge badge-yellow">INCONSISTENT</span>'}
+    </div>
+    <div class="resolver-grid">`;
+
+    for (const r of data.results) {
+      const isOk = r.status === 'resolved';
+      html += `<div class="resolver-card">
+        <div class="resolver-name">
+          <span>${r.location} ${r.name || r.resolver}</span>
+          ${badge(r.status)}
+        </div>
+        <div class="resolver-ip">${r.ip}</div>
+        ${isOk && r.records.length
+          ? `<div class="resolver-record">${r.records.join('<br>')}</div>`
+          : `<div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${r.error || 'No records'}</div>`}
+      </div>`;
+    }
+    html += '</div>';
+    document.getElementById('prop-results').innerHTML = html;
+  }
+
+  // ─── EMAIL SECURITY ────────────────────────────────────────
+  async function runEmailSecurity() {
+    const domain = document.getElementById('email-domain').value.trim();
+    if (!domain) return;
+    loading('email-results', 'Checking SPF, DKIM and DMARC records...');
+    try {
+      const data = await apiFetch('/api/email-security', { domain });
+      renderEmailSecurity(data);
+    } catch(e) { error('email-results', e.message); }
+  }
+
+  function renderEmailSecurity(data) {
+    const gradeClass = `score-${data.grade.toLowerCase()}`;
+    let html = `<div class="score-display">
+      <div class="score-circle ${gradeClass}">${data.grade}</div>
+      <div class="score-info">
+        <div class="score-label">${data.domain}</div>
+        <div class="score-sub">EMAIL SECURITY SCORE: ${data.score}/100</div>
+      </div>
+    </div>`;
+
+    // SPF
+    html += renderSecuritySection('SPF', data.spf);
+    // DMARC
+    html += renderSecuritySection('DMARC', data.dmarc);
+    // DKIM
+    html += renderDKIMSection(data.dkim);
+
+    document.getElementById('email-results').innerHTML = html;
+  }
+
+  function renderSecuritySection(name, rec) {
+    const status = rec.status || (rec.found ? 'valid' : 'missing');
+    let html = `<div class="security-section">
+      <div class="security-header">
+        <span class="security-title">${name}</span>
+        ${badge(status)}
+      </div>
+      <div class="security-body">`;
+
+    if (!rec.found) {
+      html += `<div style="font-family:var(--mono);font-size:12px;color:var(--red)">${rec.message || 'Not configured'}</div>`;
+    } else {
+      if (rec.policy_description || rec.policy) {
+        html += `<div style="font-family:var(--mono);font-size:12px;margin-bottom:8px">Policy: ${rec.policy_description || rec.policy}</div>`;
+      }
+      if (rec.record) {
+        html += `<div class="record-display">${Array.isArray(rec.record) ? rec.record.join('<br>') : rec.record}</div>`;
+      }
+      if (rec.issues && rec.issues.length) {
+        html += '<div class="issue-list">' + rec.issues.map(i => `<div class="issue-item">${i}</div>`).join('') + '</div>';
+      }
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderDKIMSection(dkim) {
+    const status = dkim.found ? 'valid' : 'unknown';
+    let html = `<div class="security-section">
+      <div class="security-header">
+        <span class="security-title">DKIM</span>
+        ${badge(status)}
+      </div>
+      <div class="security-body">
+        <div style="font-family:var(--mono);font-size:12px;margin-bottom:8px">${dkim.message}</div>`;
+
+    if (dkim.selectors && dkim.selectors.length) {
+      for (const s of dkim.selectors) {
+        html += `<div style="margin-bottom:8px">
+          <span class="badge badge-green" style="margin-bottom:4px">selector: ${s.selector}</span>
+          <div class="record-display">${s.record}</div>
+        </div>`;
+      }
+    }
+    html += '</div></div>';
+    return html;
+  }
+
+  // ─── REVERSE DNS ───────────────────────────────────────────
+  async function runReverse() {
+    const ip = document.getElementById('reverse-ip').value.trim();
+    if (!ip) return;
+    loading('reverse-results', 'Performing reverse DNS lookup...');
+    try {
+      const data = await apiFetch('/api/reverse', { ip });
+      renderReverse(data);
+    } catch(e) { error('reverse-results', e.message); }
+  }
+
+  function renderReverse(data) {
+    if (!data.found) {
+      document.getElementById('reverse-results').innerHTML =
+        `<div class="error-box">No PTR record found for ${data.ip}: ${data.error}</div>`;
+      return;
+    }
+
+    let html = `<div class="result-block">
+      <div class="result-header">
+        <span class="result-type">PTR Record</span>
+        <span class="result-ttl">${data.ip}</span>
+      </div>
+      <div class="result-body">`;
+
+    for (const h of data.hostnames) {
+      html += `<div class="hostname-row">
+        <div>
+          <div class="hostname-name">${h.hostname}</div>
+          <div class="hostname-ips" style="text-align:left;margin-top:4px">${h.forward_ips.join(', ') || 'No forward record'}</div>
+        </div>
+        ${h.verified
+          ? '<span class="badge badge-green">✓ VERIFIED</span>'
+          : '<span class="badge badge-yellow">⚠ UNVERIFIED</span>'}
+      </div>`;
+    }
+    html += '</div></div>';
+    document.getElementById('reverse-results').innerHTML = html;
+  }
+</script>
+</body>
+</html>
